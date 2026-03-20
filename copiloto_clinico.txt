@@ -1,0 +1,189 @@
+Propuesta de Proyecto
+Copiloto Clínico de
+Procesamiento de Lenguaje
+Natural (NLP)
+Transformando historias clínicas en decisiones médicas inteligentes
+Inteligencia Artificial
+Atención Médica
+2026
+1
+
+01
+Problemática
+Actual
+Barreras críticas en el sistema de registro médico que impactan la calidad de la atención
+2
+
+Problemática Actual
+Tres Desafíos Fundamentales
+Inercia Clínica por Sobrecarga
+CRÍTICO
+El médico invierte la mayor parte del tiempo de consulta en la lectura de notas previas, retrasando la interacción directa con el paciente y generando demoras en la toma de decisiones.
+Impacto: Reducción de tiempo efectivo con paciente durante la cita
+Dispersión de Información
+ALTO
+Los hitos clave como cambios de conducta, alergias y motivos de descompensación se encuentran diluidos en párrafos extensos y repetitivos, dificultando su identificación rápida.
+Impacto: Dificultad para identificar datos críticos
+Riesgo de Omisión
+SEVERO
+La presión asistencial y la lectura rápida favorecen que se pasen por alto observaciones subjetivas vitales (ej. intolerancia a dosis) para el ajuste del tratamiento.
+Impacto: Riesgo para la seguridad del paciente
+3
+
+02
+Objetivos del
+Proyecto
+4
+
+Objetivos del Proyecto
+Objetivo General y Específicos
+OBJETIVO GENERAL
+Desarrollar un Copiloto Clínico basado en NLP
+Capaz de analizar y sintetizar historias clínicas de texto no estructurado, transformándolas en un Resumen Ejecutivo Técnico estandarizado para optimizar la toma de decisiones médicas.
+01
+Destilación de Hallazgos
+Filtrar la narrativa médica para extraer hitos diagnósticos y esquemas terapéuticos, eliminando el ruido administrativo y enfocándose en lo clínicamente relevante.
+Reducción de ruido informativo
+02
+Traducción Técnica
+Convertir descripciones informales o ambiguas a un lenguaje médico preciso y codificado, facilitando la comunicación entre profesionales.
+Estandarización terminológica
+03
+Sintetización Evolutiva
+Consolidar la información por dominios clínicos (ej. Estado Metabólico, Riesgo Cardiovascular) en lugar de una simple cronología, permitiendo ver la evolución por áreas.
+Organización por dominios
+5
+
+03
+Arquitectura del
+Sistema
+6
+
+Arquitectura del Sistema
+Ingesta y Procesamiento de Texto
+Etapa A
+Comprensión de Lenguaje Natural (NLU)
+Utiliza arquitectura avanzada de Comprensión de Lenguaje Natural (NLU) para extraer las entidades médicas, diferenciando entre diferentes tipos de información clínica.
+Antecedentes Familiares
+Diferencia historial familiar del paciente
+Diagnósticos Actuales
+Identifica condiciones presentes
+Medicamentos Activos
+Reconoce tratamientos en curso
+Síntomas Subjetivos
+Captura quejas del paciente
+Capacidad de Contexto
+El sistema diferencia, por ejemplo, si una patología es un antecedente familiar o un diagnóstico actual del paciente , comprendiendo las relaciones semánticas complejas del lenguaje médico.
+Capas de Procesamiento
+1
+Tokenización
+Segmentación de texto
+2
+Reconocimiento de Entidades
+Identificación de términos médicos
+3
+Análisis de Relaciones
+Conexiones entre conceptos
+4
+Resolución de Correferencias
+Vinculación de pronombres
+5
+Extracción de Eventos
+Identificación de hitos clínicos
+Input
+Historias clínicas en texto plano
+7
+
+Arquitectura del Sistema
+Análisis por Modelos de Lenguaje (LLM)
+Etapa B.1
+Modelo Preentrenado
+Uso de modelos de gran escala con capacidades avanzadas de comprensión y generación de lenguaje, adaptados al dominio médico.
+GPT
+OpenAI - Alta capacidad de razonamiento
+Llama
+Meta - Open source y customizable
+Med-PaLM
+Google - Especializado en medicina
+Etapa B.2
+Especialización (Fine-tuning)
+Entrenamiento específico con datasets curados médicamente para ajustar el vocabulario y el conocimiento a especialidades clínicas particulares.
+Datasets Curados
+Historias clínicas validadas por especialistas
+Especialidades
+Endocrinología, Cardiología, Neurología, etc.
+Iteración Continua
+Mejora constante con retroalimentación clínica
+Herramientas de calidad de borde
+Combinación de modelos de última generación + especialización médica específica
+Validación Clínica
+Alta Precisión
+8
+
+Arquitectura del Sistema
+Generación de la Síntesis Técnica
+Etapa C - Output
+Resumen Ejecutivo Técnico
+Trayectoria Clínica
+Evolución técnica desde el primer registro hasta la consulta actual, mostrando la progresión de la condición del paciente a través del tiempo.
+Secuencia diagnóstica
+Cambios en estado clínico
+Hitos relevantes
+Consolidado de Intervenciones
+Cambios terapéuticos y sus resultados documentados, incluyendo ajustes de medicación, procedimientos y respuesta del paciente.
+Esquemas farmacológicos
+Procedimientos realizados
+Eficacia y tolerancia
+Estatus de Seguridad
+Alertas críticas detectadas en la narrativa como alergias, contraindicaciones, efectos adversos y otros factores de riesgo.
+Alergias documentadas
+Contraindicaciones
+Reacciones adversas
+9
+
+04
+Demostración
+Práctica
+10
+
+Demostración Práctica
+Ejemplo del Proceso de Síntesis
+Fase 1
+Entrada
+"En 2023 el paciente vino por mucha sed a pesar de que toma mucha agua. Se le dio medicamento para el azúcar pero le cayó mal al estómago. Hace 6 meses volvió y dijo que ya no sentía los pies..."
+Lenguaje informal
+Información dispersa
+Sin estructura clara
+Fase 2
+Proceso
+Análisis de Síntomas
+"mucha sed" → Polidipsia (síntoma de DM)
+Relación Causa-Efecto
+"medicamento... le cayó mal" → Intolerancia a biguanidas
+Progresión de Enfermedad
+"no sentía los pies" → Neuropatía periférica
+Fase 3
+Salida
+"Paciente con DM2 de larga evolución. Antecedente de intolerancia gastrointestinal a biguanidas. Evidencia de progresión a neuropatía periférica sensorial en el último semestre."
+Lenguaje médico preciso
+Información estructurada
+Lista para toma de decisiones
+Transformación Completa
+De narrativa informal a documentación clínica estandarizada en segundos
+85%
+Reducción de tiempo
+95%
+Precisión clínica
+11
+
+El Futuro de la
+Atención Médica
+La inteligencia artificial como aliada del profesional de salud
+Potenciando la precisión diagnóstica y liberando tiempo para lo más importante: 
+el paciente
+IA Avanzada
+Precisión Clínica
+Eficiencia
+Transformando la medicina
+un resumen a la vez
+12
