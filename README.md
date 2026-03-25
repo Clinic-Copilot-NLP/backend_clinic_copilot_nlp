@@ -49,7 +49,20 @@ El Copiloto Clínico NLP analiza historias clínicas en texto libre y genera un 
 - **Intervenciones Consolidadas** — Cambios terapéuticos y sus resultados documentados
 - **Estado de Seguridad** — Alertas críticas: alergias, contraindicaciones y reacciones adversas
 
-### 1.3 Objetivo Tecnico General
+### 1.3 Estrategia de Datos: Pares HC / Resumen
+
+El activo de datos central del proyecto son **pares (Historia Clínica, Resumen Ejecutivo)**: cada par consiste en una historia clínica en texto libre y su resumen estructurado correspondiente, validado por un médico.
+
+Estos pares cumplen un doble rol en el pipeline:
+
+| Rol | Cómo se usan los pares |
+|---|---|
+| **Prompting (few-shot)** | Se incluyen 1-3 pares como ejemplos dentro del prompt para guiar al modelo hacia el formato y nivel de detalle esperado, sin necesidad de entrenamiento |
+| **Fine-tuning (B.3)** | Se usan como datos de entrenamiento supervisado: la HC es el input y el resumen validado es el output objetivo que el modelo debe aprender a generar |
+
+> Esta doble utilidad hace que cada par HC/Resumen sea un activo de alto valor. La calidad y validación médica de los pares impacta directamente tanto en la calidad del prompting como en la del modelo fine-tuned.
+
+### 1.4 Objetivo Tecnico General
 
 > Determinar si modelos de lenguaje locales (open-weight) pueden alcanzar un nivel de calidad aceptable en la tarea de resumen clínico en español, comparados con modelos frontier de nube (Claude Opus), bajo los requisitos de **privacidad de datos** y **sostenibilidad de costos** de un entorno clínico real.
 
@@ -87,18 +100,35 @@ Toda la infraestructura debe ser containerizada con **Docker** para garantizar r
 | Componente | Especificación |
 |---|---|
 | **Contenedores** | Docker + Docker Compose para todos los servicios del proyecto |
-| **Inferencia de modelos** | Ollama (modelos locales) + Hugging Face Transformers |
+| **Inferencia de modelos** | Módulo de selección configurable: Anthropic API · Hugging Face (nube/local) · Ollama (nube/local) · modelo fine-tuned propio |
 | **Orquestación LLM** | LangChain o LlamaIndex para gestión del pipeline de prompts |
-| **Almacenamiento** | AWS S3 para dataset, modelos fine-tuned y outputs de evaluación |
-| **Cómputo GPU** | AWS EC2 (`g4dn.xlarge` / `g5.xlarge`) — créditos AWS disponibles para B.2 y B.3 |
-| **Lenguaje base** | Python 3.11+ |
+| **Almacenamiento** | Disco local / volumen Docker para dataset, modelos fine-tuned y outputs de evaluación |
+| **Cómputo GPU** | GPU local del computador personal + modelos propietarios en nube vía API (Claude Opus/Sonnet — solo para baseline B.1) |
+| **Lenguaje base** | Python 3.14+ |
 
-#### Herramientas MCP
+#### Módulo de Selección de Modelo
 
-Se requieren dos integraciones de Model Context Protocol para el desarrollo:
+El sistema debe exponer un **módulo de selección de modelo configurable** que permita intercambiar el backend de inferencia sin modificar el resto del pipeline. Cada ejecución del pipeline debe poder apuntar a cualquiera de las siguientes opciones:
 
-- **MCP para Hugging Face** — gestión de modelos, datasets y Spaces desde el entorno de desarrollo
-- **MCP o Skill para Ollama** — pull, run, list e interacción con modelos locales directamente desde el IDE
+| # | Backend | Modo de ejecución | Descripción |
+| --- | --- | --- | --- |
+| 1 | **Claude (Anthropic API)** | ☁️ Nube | Claude Opus 4.6 o Sonnet 4.6 vía API — baseline de referencia |
+| 2 | **Hugging Face** | ☁️ Nube | Modelos servidos vía Inference API o Spaces de HuggingFace |
+| 3 | **Hugging Face** | 🖥️ Local | Modelos descargados y ejecutados con `transformers` en la GPU local |
+| 4 | **Ollama** | ☁️ Nube | Instancia remota de Ollama (self-hosted en servidor propio) |
+| 5 | **Ollama** | 🖥️ Local | Modelos ejecutados con Ollama en el computador personal |
+| 6 | **Modelo fine-tuned propio** | 🖥️ Local | Modelo B.3 entrenado por el proyecto, servido vía Ollama en formato GGUF |
+
+> El módulo debe aceptar la configuración del backend mediante variables de entorno o un archivo de configuración, de modo que cambiar de modelo no requiera tocar el código del pipeline.
+
+#### Herramientas MCP / Skills
+
+Se requieren integraciones vía **MCP (Model Context Protocol) o Skills** para el desarrollo:
+
+| Herramienta | Tipo preferido | Función |
+| --- | --- | --- |
+| **Hugging Face** | Skill (`TheHuggingFace`) — _pendiente de instalar_ | Gestión de modelos, datasets y Spaces desde el entorno de desarrollo |
+| **Ollama** | MCP o Skill | pull, run, list e interacción con modelos locales directamente desde el IDE |
 
 #### Especificación del Dataset
 
@@ -126,6 +156,29 @@ Todos los modelos evaluados reciben el mismo prompt. El sistema instruye al mode
 - **Estado de Seguridad** — alergias, contraindicaciones y reacciones adversas
 - **Dominios Clínicos Activos** — consolidación por áreas: metabólico, cardiovascular, neurológico, etc.
 
+#### Estrategias de Prompting
+
+El prompt estandarizado debe explorar y comparar las siguientes técnicas:
+
+| Estrategia | Descripción | Aplicación en este proyecto |
+| --- | --- | --- |
+| **Zero-shot** | Solo instrucción, sin ejemplos | Línea base de prompting — mide capacidad intrínseca del modelo |
+| **Few-shot** | 1-3 pares HC/Resumen incluidos como ejemplos en el prompt | Usa los pares del dataset curado para guiar formato y nivel de detalle |
+| **Chain of Thought (CoT)** | El modelo razona paso a paso antes de producir el resumen final | Se instruye al modelo a identificar primero hitos clínicos clave, luego redactar cada sección |
+| **CoT + Few-shot** | Ejemplos con razonamiento explícito incluido | Combinación de mayor costo de tokens pero potencialmente mayor precisión clínica |
+
+> La comparación entre estrategias se ejecuta sobre el mismo dataset y con el mismo modelo, de modo que el efecto del prompting sea medible de forma aislada.
+
+#### Seguridad: Prompt Injection
+
+Las historias clínicas son texto libre introducido por terceros (médicos, personal administrativo). El sistema debe estar protegido contra **prompt injection** — intentos, accidentales o deliberados, de que el contenido de la HC manipule el comportamiento del modelo.
+
+Medidas requeridas:
+
+- **Delimitadores explícitos** — la HC del paciente debe estar encapsulada con marcadores claros (ej. `<historia_clinica>...</historia_clinica>`) que la separen de las instrucciones del sistema
+- **Instrucción de rol fijo** — el system prompt debe indicar explícitamente que el modelo solo debe procesar el contenido delimitado y rechazar cualquier instrucción encontrada dentro de la HC
+- **Validación de output** — el pipeline debe verificar que el output tenga la estructura esperada (cuatro secciones) y no contenga respuestas a posibles instrucciones inyectadas
+
 ### 2.4 Pipeline de Evaluación Automatizada
 
 ```
@@ -145,6 +198,8 @@ Todos los modelos evaluados reciben el mismo prompt. El sistema instruye al mode
 | **Prompt estandarizado** | System prompt + User prompt validados y documentados |
 | **Pipeline de evaluación** | Script funcional que procesa cualquier modelo con el dataset |
 | **Integración Baseline B.1** | API de Claude Opus 4.6 y Sonnet 4.6 integrada y funcional |
+
+> ⚠️ **Responsabilidad del dataset:** La obtención, curation, anonimización y validación del dataset es responsabilidad exclusiva de los desarrolladores del proyecto. El asistente IA (Claude Code) no es responsable del contenido, veracidad ni calidad de las historias clínicas proporcionadas.
 
 ---
 
@@ -181,6 +236,7 @@ Modelos ya especializados en dominio médico, disponibles en repositorios públi
 | `somosnlp/spanish_medica_llm` | Modelo médico en español |
 | `somosnlp/Sam_Diagnostic` | Diagnóstico médico en español |
 | `kingabzpro/Qwen-3-32B-Medical-Reasoning` | Qwen 3 (32B) con razonamiento médico |
+| [`google/medgemma-1.5-4b-it`](https://huggingface.co/google/medgemma-1.5-4b-it) | MedGemma 1.5 (4B) de Google, instruccionado para dominio médico |
 
 **Candidatos en Ollama:**
 
@@ -205,8 +261,8 @@ Entrenamiento de un modelo open-weight propio usando datasets curados de medicin
 | **Modelo base candidato** | Qwen 2.5 / Llama 3 / Gemma 2 — seleccionar según rendimiento en B.2 |
 | **Técnica de entrenamiento** | LoRA / QLoRA — eficiente en memoria, apto para GPUs de AWS EC2 |
 | **Datasets de entrenamiento** | `somosnlp/SMC` y `somosnlp/medical_en_es_formato_chatML_Gemma` |
-| **Infraestructura** | AWS EC2 `g4dn.xlarge` o `g5.xlarge` — créditos AWS disponibles |
-| **Almacenamiento** | AWS S3 para checkpoints, modelo final y outputs |
+| **Infraestructura** | Computador personal con GPU local |
+| **Almacenamiento** | Disco local para checkpoints, modelo final y outputs |
 | **Exportación** | Formato GGUF para uso con Ollama localmente |
 
 ---
@@ -220,20 +276,20 @@ Entrenamiento de un modelo open-weight propio usando datasets curados de medicin
 | Organización cronológica | Cualitativa | Secuencia temporal correcta de eventos clínicos |
 | Estructuración por dominios | Cualitativa | Información agrupada por áreas clínicas |
 | Calidad del español médico | Cualitativa | Nivel de lenguaje técnico apropiado para médicos |
-| Omisión de datos críticos | **Seguridad — crítica** | No omite alertas de seguridad (alergias, contraindicaciones) |
+| Calibración de alertas críticas | **Seguridad — crítica** | No omite alertas de seguridad reales (alergias, contraindicaciones) **ni genera falsas alarmas** que puedan derivar en tratamientos excesivos o innecesarios |
 | Utilidad clínica general | Global | ¿El médico usaría este resumen en consulta? |
 | ROUGE / BERTScore | Automática | Comparación textual contra gold standard |
 
 ### 3.6 Tabla Comparativa de Resultados
 
-| Métrica | B.1 Genérico ☁️ | B.2 Comunitario 🖥️ | B.3 Personalizado 🖥️ |
+| Métrica | B.1 Genérico ☁️ | B.2 Comunitario ☁️🖥️ | B.3 Personalizado 🖥️ |
 |---|:---:|:---:|:---:|
-| Tipo de ejecución | Nube/API | Local | Local |
+| Tipo de ejecución | Nube/API | Nube o Local | Local |
 | Precisión terminológica | — | — | — |
 | Completitud | — | — | — |
 | Organización cronológica | — | — | — |
 | Calidad del español | — | — | — |
-| Omisión de datos críticos | — | — | — |
+| Calibración de alertas críticas | — | — | — |
 | Utilidad clínica general | — | — | — |
 
 ### 3.7 Entregables de la Fase 2
@@ -282,7 +338,7 @@ Se reclutarán entre 1 y 3 médicos especialistas como revisores voluntarios:
 | Organización cronológica | Sin orden temporal | Orden general correcto | Cronología perfecta | ≥ 3.5 |
 | Estructuración por dominios | Sin estructura | Básicamente correcta | Organización óptima | ≥ 3.5 |
 | Calidad del español médico | Lenguaje informal | Aceptable pero mejorable | Español médico ejemplar | ≥ 3.5 |
-| Omisión de datos críticos | Omite alertas | Alertas principales presentes | Seguridad cubierta | ≥ 3.5 |
+| Calibración de alertas críticas | Omite alertas reales **o** genera falsas alarmas | Alertas presentes, algún falso positivo menor | Sin omisiones ni sobrealerta — cada alerta está justificada | ≥ 3.5 |
 | Utilidad clínica general | No lo usaría | Útil con correcciones | Lo usaría tal cual | ≥ 4.0 |
 
 ### 4.5 Umbrales de Calidad
@@ -369,11 +425,11 @@ Antes de que el médico entre a la consulta, el sistema genera automáticamente:
 | # | Tarea | Descripción | Responsable | Fase |
 |:---:|---|---|:---:|:---:|
 | 1 | Infraestructura y entorno | Repo dockerizado, Docker Compose, MCPs configurados | AI Agent | Fase 1 |
-| 2 | Dataset base | Conseguir/generar HCs anonimizadas en español, formatear en JSON | PO + AI Agent | Fase 1 |
+| 2 | Dataset base | Conseguir/generar HCs anonimizadas en español, formatear en JSON — **responsabilidad exclusiva de los desarrolladores** | PO | Fase 1 |
 | 3 | Pipeline de evaluación | Script para correr cualquier modelo sobre el dataset y medir métricas | AI Agent | Fase 1 |
 | 4 | Baseline B.1 (Claude) | Integrar API Claude Opus/Sonnet, correr dataset, almacenar outputs | AI Agent | Fase 2 |
 | 5 | Evaluación B.2 (Comunitario) | Descargar y evaluar modelos médicos de HF/Ollama, filtrar por español | AI Agent | Fase 2 |
-| 6 | Fine-tuning B.3 | Seleccionar base model, preparar datos, entrenar con LoRA/QLoRA en AWS | AI Agent + PO | Fase 2 |
+| 6 | Fine-tuning B.3 | Seleccionar base model, preparar datos, entrenar con LoRA/QLoRA localmente | AI Agent + PO | Fase 2 |
 | 7 | Reclutamiento médico | Contactar 1-3 médicos especialistas, presentar proyecto y acordar revisión | PO | Fase 3 |
 | 8 | Validación clínica | Médicos revisan pares HC/Resumen del mejor modelo, completan rúbrica | PO + Médicos | Fase 3 |
 | 9 | Decisión de viabilidad | ¿El modelo local alcanza el umbral? Viable para producción o no | PO | Fase 3 |
@@ -387,7 +443,7 @@ Antes de que el médico entre a la consulta, el sistema genera automáticamente:
 | 1 | ¿Cómo garantizamos comparación justa entre todos los modelos? | Mismo prompt, mismas HCs, mismas métricas — definir protocolo exacto |
 | 2 | ¿Qué modelo base usar para el fine-tuning de B.3? | Depende del rendimiento en B.2 — Qwen 2.5 y Llama 3 son candidatos iniciales |
 | 3 | ¿Cómo manejar modelos B.2 centrados en inglés? | Evaluar rendimiento en español primero, descartar los que fallen antes del benchmark completo |
-| 4 | ¿Cuánto GPU time de AWS se necesita para el fine-tuning? | Estimar antes de ejecutar para controlar consumo de créditos |
+| 4 | ¿Cuánta memoria GPU local se necesita para el fine-tuning? | Estimar requisitos antes de ejecutar para confirmar viabilidad en el hardware disponible |
 | 5 | ¿Qué sucede si ningún modelo local alcanza el umbral médico? | Documentar la brecha, recomendar timeline de re-evaluación en 12-18 meses |
 
 ---
