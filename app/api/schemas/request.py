@@ -12,4 +12,4 @@ class AnalyzeRequest(BaseModel):
     @field_validator("historia_clinica", mode="before")
     @classmethod
     def strip_whitespace(cls, v: str) -> str:
-        return v.strip() if isinstance(v, str) else v
+        return v.strip()

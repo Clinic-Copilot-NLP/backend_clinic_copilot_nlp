@@ -5,12 +5,10 @@ class ResumenEjecutivoTecnico(BaseModel):
     trayectoria_clinica: str
     intervenciones_consolidadas: str
     estado_seguridad: str
-    impresion_diagnostica: str
 
 
 class AnalyzeResponse(BaseModel):
     resumen_ejecutivo: ResumenEjecutivoTecnico | None = None
-    resumen_texto: str
     proveedor: str
     modelo: str
     tokens_entrada: int | None = None

@@ -1,17 +1,17 @@
 from functools import lru_cache
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     # LLM Provider
-    OPENAI_API_KEY: SecretStr = SecretStr("")
-    MODEL_NAME: str = "gpt-4o"
-    LLM_PROVIDER: str = "openai"
+    OPENAI_API_KEY: SecretStr = Field()
+    MODEL_NAME: str = Field()
+    LLM_PROVIDER: str = Field()
 
     # Application
-    APP_ENV: str = "development"
-    LOG_LEVEL: str = "INFO"
+    APP_ENV: str = Field()
+    LOG_LEVEL: str = Field()
     MAX_HISTORIA_CHARS: int = 50_000
 
     model_config = SettingsConfigDict(
@@ -23,4 +23,4 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    return Settings() # type: ignore

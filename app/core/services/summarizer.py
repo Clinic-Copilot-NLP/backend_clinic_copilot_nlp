@@ -46,13 +46,10 @@ class ClinicalSummarizerService:
             f"| tokens_salida={llm_response.tokens_output}"
         )
 
-        resumen_ejecutivo, resumen_texto = self._parse_llm_response(
-            llm_response.content
-        )
+        resumen_ejecutivo = self._parse_llm_response(llm_response.content)
 
         return AnalyzeResponse(
             resumen_ejecutivo=resumen_ejecutivo,
-            resumen_texto=resumen_texto,
             proveedor=llm_response.provider,
             modelo=llm_response.model,
             tokens_entrada=llm_response.tokens_input,
@@ -60,46 +57,29 @@ class ClinicalSummarizerService:
             tiempo_procesamiento_ms=elapsed_ms,
         )
 
-    def _parse_llm_response(
-        self, content: str
-    ) -> tuple[ResumenEjecutivoTecnico | None, str]:
+    def _parse_llm_response(self, content: str) -> ResumenEjecutivoTecnico | None:
         """
         Intenta parsear el contenido de la respuesta LLM como JSON estructurado.
 
-        Si el parseo es exitoso, retorna (ResumenEjecutivoTecnico, texto_formateado).
-        Si falla, degrada gracefully: retorna (None, contenido_raw).
-
-        Returns:
-            Tupla (resumen_ejecutivo, resumen_texto).
+        Si el parseo es exitoso, retorna ResumenEjecutivoTecnico.
+        Si falla, degrada gracefully: retorna None y loguea el error.
         """
         try:
             # Limpiar posible markdown del LLM (```json ... ```)
             cleaned = content.strip()
             if cleaned.startswith("```"):
                 lines = cleaned.split("\n")
-                # Remover primera y última línea si son delimitadores de código
                 start_idx = 1 if lines[0].startswith("```") else 0
                 end_idx = len(lines) - 1 if lines[-1].strip() == "```" else len(lines)
                 cleaned = "\n".join(lines[start_idx:end_idx]).strip()
 
             data = json.loads(cleaned)
             resumen = ResumenEjecutivoTecnico(**data)
-
-            # Construir texto legible desde la estructura
-            resumen_texto = (
-                f"## Trayectoria Clínica\n{resumen.trayectoria_clinica}\n\n"
-                f"## Intervenciones Consolidadas\n{resumen.intervenciones_consolidadas}\n\n"
-                f"## Estado de Seguridad\n{resumen.estado_seguridad}\n\n"
-                f"## Impresión Diagnóstica\n{resumen.impresion_diagnostica}"
-            )
-
             logger.debug("Respuesta LLM parseada exitosamente como JSON estructurado.")
-            return resumen, resumen_texto
+            return resumen
 
         except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
             logger.warning(
-                f"No se pudo parsear la respuesta LLM como JSON estructurado: {e}. "
-                f"Degradando a respuesta en texto plano."
+                f"No se pudo parsear la respuesta LLM como JSON estructurado: {e}."
             )
-            resumen_texto = f"## Resumen Clínico\n\n{content}"
-            return None, resumen_texto
+            return None

@@ -28,7 +28,7 @@ class OpenAIProvider(LLMProvider):
                 ],
                 temperature=0.3,
             )
-            content = response.choices[0].message.content or ""
+            content = response.choices[0].message.content or "Sin respuesta"
             usage = response.usage
             return LLMResponse(
                 content=content,

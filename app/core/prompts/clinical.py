@@ -23,8 +23,6 @@ Analiza la historia clínica y genera un objeto JSON con exactamente las siguien
 
 3. **estado_seguridad**: Alertas críticas de seguridad clínica. Incluye: alergias e hipersensibilidades documentadas con reacciones descritas, contraindicaciones absolutas y relativas identificadas, efectos adversos graves previos, interacciones medicamentosas de relevancia clínica, factores de riesgo cardiovascular, metabólico u otros que impacten la toma de decisiones terapéuticas.
 
-4. **impresion_diagnostica**: Impresión diagnóstica actualizada basada en la totalidad de la información clínica disponible. Incluye: diagnóstico principal con codificación CIE-10 cuando aplique, diagnósticos secundarios relevantes, comorbilidades activas, estadificación o clasificación de severidad según criterios internacionales vigentes y diagnósticos diferenciales pendientes de confirmación si corresponde.
-
 ## FORMATO DE RESPUESTA
 - Responde ÚNICAMENTE con un objeto JSON válido.
 - No incluyas markdown, bloques de código, explicaciones previas ni texto posterior al JSON.
@@ -37,22 +35,21 @@ Analiza la historia clínica y genera un objeto JSON con exactamente las siguien
 {
   "trayectoria_clinica": "Paciente de 65 años con diagnóstico de insuficiencia cardíaca con fracción de eyección reducida (ICFEr) desde 2019...",
   "intervenciones_consolidadas": "Tratamiento farmacológico con carvedilol 25 mg c/12h (betabloqueante), enalapril 10 mg c/12h (IECA)...",
-  "estado_seguridad": "Alergia documentada a penicilina (urticaria generalizada, 2015). Contraindicación relativa a AINEs por insuficiencia renal crónica estadio 3...",
-  "impresion_diagnostica": "Insuficiencia cardíaca crónica con fracción de eyección reducida (ICFEr), CIE-10: I50.9. Hipertensión arterial esencial, CIE-10: I10..."
+  "estado_seguridad": "Alergia documentada a penicilina (urticaria generalizada, 2015). Contraindicación relativa a AINEs por insuficiencia renal crónica estadio 3..."
 }"""
 
 
 def build_user_prompt(historia_clinica: str) -> str:
     """
     Construye el prompt de usuario envolviendo la historia clínica en etiquetas XML.
-    
+
     El uso de etiquetas XML delimita claramente el contenido del paciente,
     lo que facilita que el sistema prompt aplique las instrucciones de seguridad
     contra inyección de prompts.
-    
+
     Args:
         historia_clinica: Texto de la historia clínica del paciente.
-        
+
     Returns:
         Prompt formateado con la historia clínica envuelta en etiquetas XML.
     """
