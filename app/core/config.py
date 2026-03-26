@@ -18,6 +18,16 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = Field()
 
+    # Auth
+    SECRET_KEY: str = Field()
+    TOKEN_EXPIRE_HOURS: int = Field(default=12)
+    DOCTOR_ID: str = Field(default="1")
+    DOCTOR_EMAIL: str = Field()
+    DOCTOR_PASSWORD: str = Field()
+    DOCTOR_NAME: str = Field()
+    DOCTOR_SPECIALTY: str = Field()
+    DOCTOR_AVATAR_INITIALS: str = Field(default="")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

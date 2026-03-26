@@ -9,6 +9,7 @@ from app.core.config import get_settings
 from app.db.base import engine, init_db
 from app.infrastructure.llm.base import LLMProviderError
 from app.infrastructure.llm.factory import get_llm_provider
+from app.api.routes import auth
 
 logging.basicConfig(level="INFO")
 logger = logging.getLogger(__name__)
@@ -53,3 +54,4 @@ app.include_router(health.router, tags=["health"])
 app.include_router(patients.router, prefix="/api/v1", tags=["patients"])
 app.include_router(analyze.router, prefix="/api/v1", tags=["analyze"])
 app.include_router(clinical.router, prefix="/api/v1", tags=["clinical"])
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
