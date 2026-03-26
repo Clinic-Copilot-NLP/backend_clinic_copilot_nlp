@@ -7,12 +7,15 @@ def get_llm_provider(settings: Settings) -> LLMProvider:
 
     if provider_name == "openai":
         from app.infrastructure.llm.openai_provider import OpenAIProvider
+
         return OpenAIProvider(settings)
     elif provider_name == "ollama":
         from app.infrastructure.llm.ollama import OllamaProvider
+
         return OllamaProvider(settings)
     elif provider_name == "huggingface":
         from app.infrastructure.llm.huggingface import HuggingFaceProvider
+
         return HuggingFaceProvider(settings)
     else:
         raise ValueError(

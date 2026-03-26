@@ -1,15 +1,17 @@
 """
 Tests unitarios para ClinicalSummarizerService.
+
+El servicio ahora acepta patient_id y db como argumentos adicionales,
+persiste el análisis y retorna None (HTTP 204).
 """
 
 import json
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.api.schemas.response import AnalyzeResponse, ResumenEjecutivoTecnico
 from app.core.services.summarizer import ClinicalSummarizerService
 from app.infrastructure.llm.base import LLMProvider, LLMProviderError, LLMResponse
-
 
 # ---------------------------------------------------------------------------
 # Helpers / fakes locales
@@ -17,13 +19,26 @@ from app.infrastructure.llm.base import LLMProvider, LLMProviderError, LLMRespon
 
 VALID_JSON_CONTENT = json.dumps(
     {
-        "trayectoria_clinica": "Paciente con HTA desde 2019.",
-        "intervenciones_consolidadas": "Enalapril 10mg c/12h.",
-        "estado_seguridad": "Alergia a penicilina.",
+        "domains": [
+            {"title": "Cardiología - HTA", "status": "warn", "description": "HTA estadio 2."}
+        ],
+        "alerts": [
+            {"title": "Uso de AINEs contraindicado", "status": "danger", "description": "IRC."}
+        ],
+        "timeline": [
+            {
+                "date": "2018-05-10",
+                "title": "Diagnóstico HTA",
+                "description": "Primera consulta.",
+                "is_critical": False,
+            }
+        ],
     }
 )
 
 MARKDOWN_FENCED_JSON = f"```json\n{VALID_JSON_CONTENT}\n```"
+
+PATIENT_ID = "11111111-1111-1111-1111-111111111111"
 
 
 class _FakeProvider(LLMProvider):
@@ -68,81 +83,124 @@ class _ErrorProvider(LLMProvider):
         raise LLMProviderError("Error simulado", self.provider_name)
 
 
+def _make_db_mock() -> AsyncMock:
+    """Crea un AsyncMock de AsyncSession para tests del servicio."""
+    db = AsyncMock()
+    db.add = MagicMock()
+    db.flush = AsyncMock()
+    db.commit = AsyncMock()
+    db.rollback = AsyncMock()
+    return db
+
+
 # ---------------------------------------------------------------------------
 # Tests del método analyze()
 # ---------------------------------------------------------------------------
 
 
 class TestAnalyze:
-    async def test_analyze_returns_analyze_response(self):
-        """analyze() retorna una instancia de AnalyzeResponse."""
+    async def test_analyze_returns_none(self):
+        """analyze() retorna None (HTTP 204 — sin body)."""
         service = ClinicalSummarizerService()
-        result = await service.analyze("Historia clínica de prueba.", _FakeProvider())
-        assert isinstance(result, AnalyzeResponse)
+        db = _make_db_mock()
+        result = await service.analyze(
+            "Historia clínica de prueba.", PATIENT_ID, _FakeProvider(), db
+        )
+        assert result is None
 
-    async def test_analyze_resumen_ejecutivo_populated(self):
-        """resumen_ejecutivo debe estar poblado con los campos correctos."""
+    async def test_analyze_calls_db_add(self):
+        """analyze() llama db.add() para persistir el ClinicalAnalysis."""
         service = ClinicalSummarizerService()
-        result = await service.analyze("Historia clínica de prueba.", _FakeProvider())
-        assert result.resumen_ejecutivo is not None
-        assert result.resumen_ejecutivo.trayectoria_clinica == "Paciente con HTA desde 2019."
-        assert result.resumen_ejecutivo.intervenciones_consolidadas == "Enalapril 10mg c/12h."
-        assert result.resumen_ejecutivo.estado_seguridad == "Alergia a penicilina."
+        db = _make_db_mock()
+        await service.analyze("Historia clínica de prueba.", PATIENT_ID, _FakeProvider(), db)
+        db.add.assert_called_once()
 
-    async def test_analyze_tokens_mapped(self):
-        """tokens_entrada y tokens_salida provienen de llm_response."""
-        provider = _FakeProvider(tokens_input=123, tokens_output=456)
+    async def test_analyze_calls_db_flush(self):
+        """analyze() llama db.flush() después de db.add()."""
         service = ClinicalSummarizerService()
-        result = await service.analyze("Historia clínica de prueba.", provider)
-        assert result.tokens_entrada == 123
-        assert result.tokens_salida == 456
+        db = _make_db_mock()
+        await service.analyze("Historia clínica de prueba.", PATIENT_ID, _FakeProvider(), db)
+        db.flush.assert_called_once()
 
-    async def test_analyze_tiempo_procesamiento_non_negative(self):
-        """tiempo_procesamiento_ms debe ser >= 0."""
-        service = ClinicalSummarizerService()
-        result = await service.analyze("Historia clínica de prueba.", _FakeProvider())
-        assert result.tiempo_procesamiento_ms >= 0
+    async def test_analyze_persists_clinical_analysis_object(self):
+        """db.add() recibe una instancia de ClinicalAnalysis."""
+        from app.db.models.clinical_analysis import ClinicalAnalysis
 
-    async def test_analyze_proveedor_and_modelo(self):
-        """proveedor y modelo se mapean desde la respuesta LLM."""
-        provider = _FakeProvider(provider_name_value="fake", model="fake-model")
         service = ClinicalSummarizerService()
-        result = await service.analyze("Historia clínica de prueba.", provider)
-        assert result.proveedor == "fake"
-        assert result.modelo == "fake-model"
+        db = _make_db_mock()
+        await service.analyze("Historia clínica de prueba.", PATIENT_ID, _FakeProvider(), db)
+        added_obj = db.add.call_args[0][0]
+        assert isinstance(added_obj, ClinicalAnalysis)
 
     async def test_analyze_propagates_llm_provider_error(self):
         """analyze() propaga LLMProviderError si el proveedor falla."""
         service = ClinicalSummarizerService()
+        db = _make_db_mock()
         with pytest.raises(LLMProviderError):
-            await service.analyze("Historia clínica de prueba.", _ErrorProvider())
+            await service.analyze("Historia clínica de prueba.", PATIENT_ID, _ErrorProvider(), db)
 
+    async def test_analyze_domains_persisted_with_ids(self):
+        """Los ítems de domains en el análisis persistido tienen campo 'id'."""
+        from app.db.models.clinical_analysis import ClinicalAnalysis
 
-# ---------------------------------------------------------------------------
-# Tests del método _parse_llm_response()
-# ---------------------------------------------------------------------------
+        service = ClinicalSummarizerService()
+        db = _make_db_mock()
+        await service.analyze("Historia clínica de prueba.", PATIENT_ID, _FakeProvider(), db)
+        added_obj: ClinicalAnalysis = db.add.call_args[0][0]
+        assert added_obj.domains is not None
+        assert len(added_obj.domains) > 0
+        for item in added_obj.domains:
+            assert "id" in item
 
+    async def test_analyze_alerts_persisted_with_ids(self):
+        """Los ítems de alerts en el análisis persistido tienen campo 'id'."""
+        from app.db.models.clinical_analysis import ClinicalAnalysis
 
-class TestParseLLMResponse:
-    def _service(self) -> ClinicalSummarizerService:
-        return ClinicalSummarizerService()
+        service = ClinicalSummarizerService()
+        db = _make_db_mock()
+        await service.analyze("Historia clínica de prueba.", PATIENT_ID, _FakeProvider(), db)
+        added_obj: ClinicalAnalysis = db.add.call_args[0][0]
+        assert added_obj.alerts is not None
+        assert len(added_obj.alerts) > 0
+        for item in added_obj.alerts:
+            assert "id" in item
 
-    def test_parse_valid_json(self):
-        """JSON válido → retorna ResumenEjecutivoTecnico."""
-        result = self._service()._parse_llm_response(VALID_JSON_CONTENT)
-        assert isinstance(result, ResumenEjecutivoTecnico)
+    async def test_analyze_timeline_persisted_with_ids(self):
+        """Los ítems de timeline en el análisis persistido tienen campo 'id'."""
+        from app.db.models.clinical_analysis import ClinicalAnalysis
 
-    def test_parse_markdown_fenced_json(self):
-        """JSON dentro de bloque ```json...``` → retorna ResumenEjecutivoTecnico."""
-        result = self._service()._parse_llm_response(MARKDOWN_FENCED_JSON)
-        assert isinstance(result, ResumenEjecutivoTecnico)
+        service = ClinicalSummarizerService()
+        db = _make_db_mock()
+        await service.analyze("Historia clínica de prueba.", PATIENT_ID, _FakeProvider(), db)
+        added_obj: ClinicalAnalysis = db.add.call_args[0][0]
+        assert added_obj.timeline is not None
+        assert len(added_obj.timeline) > 0
+        for item in added_obj.timeline:
+            assert "id" in item
 
-    def test_parse_invalid_json_returns_none(self):
-        """String que no es JSON → retorna None (degradación graciosa)."""
-        result = self._service()._parse_llm_response("not json at all")
-        assert result is None
+    async def test_analyze_does_not_add_id_if_llm_provides_one(self):
+        """Si el LLM ya provee 'id' en un ítem, no se sobreescribe."""
+        from app.db.models.clinical_analysis import ClinicalAnalysis
 
-    def test_parse_missing_fields_returns_none(self):
-        """JSON sin campos requeridos → retorna None."""
-        result = self._service()._parse_llm_response('{"foo": "bar"}')
-        assert result is None
+        llm_provided_id = "llm-provided-uuid-here"
+        content = json.dumps(
+            {
+                "domains": [
+                    {
+                        "id": llm_provided_id,
+                        "title": "Cardiología",
+                        "status": "ok",
+                        "description": "Estable.",
+                    }
+                ],
+                "alerts": [],
+                "timeline": [],
+            }
+        )
+        service = ClinicalSummarizerService()
+        db = _make_db_mock()
+        await service.analyze(
+            "Historia clínica de prueba.", PATIENT_ID, _FakeProvider(content=content), db
+        )
+        added_obj: ClinicalAnalysis = db.add.call_args[0][0]
+        assert added_obj.domains[0]["id"] == llm_provided_id

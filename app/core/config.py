@@ -1,4 +1,5 @@
 from functools import lru_cache
+
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -14,6 +15,9 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = Field()
     MAX_HISTORIA_CHARS: int = 50_000
 
+    # Database
+    DATABASE_URL: str = Field()
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -23,4 +27,4 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings() # type: ignore
+    return Settings()  # type: ignore

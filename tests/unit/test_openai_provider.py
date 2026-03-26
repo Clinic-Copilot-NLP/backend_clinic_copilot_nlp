@@ -12,7 +12,6 @@ from openai import APIConnectionError, APIError, RateLimitError
 from app.infrastructure.llm.base import LLMProviderError, LLMResponse
 from app.infrastructure.llm.openai_provider import OpenAIProvider
 
-
 # ---------------------------------------------------------------------------
 # Helpers para construir errores de openai correctamente
 # ---------------------------------------------------------------------------

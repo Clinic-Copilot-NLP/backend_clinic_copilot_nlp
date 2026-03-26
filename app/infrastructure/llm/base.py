@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+
 from pydantic import BaseModel
 
 
@@ -24,10 +25,8 @@ class LLMProviderError(Exception):
 
 class LLMProvider(ABC):
     @abstractmethod
-    async def generate(self, system_prompt: str, user_prompt: str) -> LLMResponse:
-        ...
+    async def generate(self, system_prompt: str, user_prompt: str) -> LLMResponse: ...
 
     @property
     @abstractmethod
-    def provider_name(self) -> str:
-        ...
+    def provider_name(self) -> str: ...

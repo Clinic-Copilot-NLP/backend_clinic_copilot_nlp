@@ -5,9 +5,9 @@ Tests unitarios para la factory de proveedores LLM.
 import pytest
 
 from app.infrastructure.llm.factory import get_llm_provider
-from app.infrastructure.llm.openai_provider import OpenAIProvider
-from app.infrastructure.llm.ollama import OllamaProvider
 from app.infrastructure.llm.huggingface import HuggingFaceProvider
+from app.infrastructure.llm.ollama import OllamaProvider
+from app.infrastructure.llm.openai_provider import OpenAIProvider
 
 
 class TestGetLLMProvider:

@@ -7,15 +7,21 @@ from fastapi.testclient import TestClient
 
 from app.infrastructure.llm.base import LLMProvider, LLMResponse
 
-
 # ---------------------------------------------------------------------------
 # FakeLLMProvider — responde con JSON válido sin llamar a ninguna API real
 # ---------------------------------------------------------------------------
 
 FAKE_JSON_RESPONSE = """{
-  "trayectoria_clinica": "Paciente masculino de 58 años con HTA e IRC estadio 3 desde 2018.",
-  "intervenciones_consolidadas": "Enalapril 10mg c/12h, hemodiálisis 3 veces/semana.",
-  "estado_seguridad": "Alergia a penicilina (urticaria). Contraindicación relativa a AINEs."
+  "domains": [
+    {"title": "Cardiología - HTA", "status": "warn", "description": "HTA estadio 2 con IRC estadio 3."},
+    {"title": "Nefrología - IRC estadio 3", "status": "warn", "description": "Creatinina 2.8 mg/dL."}
+  ],
+  "alerts": [
+    {"title": "Uso de AINEs contraindicado", "status": "danger", "description": "IRC reduce clearance renal. AINEs contraindicados."}
+  ],
+  "timeline": [
+    {"date": "2018-01-01", "title": "Diagnóstico HTA + IRC", "description": "Primera consulta. Inicio de enalapril.", "is_critical": true}
+  ]
 }"""
 
 
@@ -55,6 +61,7 @@ def clear_settings_cache(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "openai")
     monkeypatch.setenv("APP_ENV", "test")
     monkeypatch.setenv("LOG_LEVEL", "WARNING")
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://fake:fake@localhost/fake")
     yield
     get_settings.cache_clear()
 
@@ -71,12 +78,17 @@ def client():
     TestClient con FakeLLMProvider inyectado en app.state.
 
     IMPORTANTE: el lifespan de FastAPI se ejecuta al entrar en el bloque `with`.
-    Por eso inyectamos el proveedor DESPUÉS de entrar, para sobrescribir lo que
-    configuró el lifespan (que intentaría conectarse al proveedor real).
+    init_db() se mockea para que no intente conectarse a la base de datos real
+    durante los tests. El proveedor LLM también se sobrescribe con el fake.
     """
+    from unittest.mock import AsyncMock, patch
+
     from app.main import app
 
-    with TestClient(app, raise_server_exceptions=False) as c:
+    with (
+        patch("app.main.init_db", new=AsyncMock()),
+        TestClient(app, raise_server_exceptions=False) as c,
+    ):
         # El lifespan ya corrió; ahora sobreescribimos el proveedor con el fake
         app.state.llm_provider = FakeLLMProvider()
         yield c

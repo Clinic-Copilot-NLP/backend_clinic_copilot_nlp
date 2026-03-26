@@ -4,8 +4,8 @@ Tests unitarios para los proveedores stub (Ollama y HuggingFace).
 
 import pytest
 
-from app.infrastructure.llm.ollama import OllamaProvider
 from app.infrastructure.llm.huggingface import HuggingFaceProvider
+from app.infrastructure.llm.ollama import OllamaProvider
 
 
 class TestOllamaProvider:

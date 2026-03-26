@@ -5,9 +5,8 @@ Tests unitarios para los schemas Pydantic de request y response.
 import pytest
 from pydantic import ValidationError
 
+from app.api.schemas.clinical import AlertItem, DomainItem, SummaryResponse, TimelineItem
 from app.api.schemas.request import AnalyzeRequest
-from app.api.schemas.response import AnalyzeResponse, ResumenEjecutivoTecnico
-
 
 # ---------------------------------------------------------------------------
 # AnalyzeRequest
@@ -52,87 +51,162 @@ class TestAnalyzeRequest:
 
 
 # ---------------------------------------------------------------------------
-# ResumenEjecutivoTecnico
+# DomainItem
 # ---------------------------------------------------------------------------
 
 
-class TestResumenEjecutivoTecnico:
+class TestDomainItem:
     def test_valid_construction(self):
-        """Los tres campos presentes → modelo válido."""
-        resumen = ResumenEjecutivoTecnico(
-            trayectoria_clinica="Evolución crónica desde 2019.",
-            intervenciones_consolidadas="Enalapril 10mg c/12h.",
-            estado_seguridad="Alergia a penicilina.",
+        """Todos los campos presentes → modelo válido."""
+        item = DomainItem(
+            id="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            title="Cardiología - HTA",
+            status="warn",
+            description="HTA estadio 2.",
         )
-        assert resumen.trayectoria_clinica == "Evolución crónica desde 2019."
-        assert resumen.intervenciones_consolidadas == "Enalapril 10mg c/12h."
-        assert resumen.estado_seguridad == "Alergia a penicilina."
+        assert item.id == "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+        assert item.title == "Cardiología - HTA"
+        assert item.status == "warn"
+        assert item.description == "HTA estadio 2."
 
     def test_missing_required_field(self):
-        """Omitir trayectoria_clinica → ValidationError."""
+        """Omitir 'title' → ValidationError."""
         with pytest.raises(ValidationError):
-            ResumenEjecutivoTecnico(  # type: ignore[call-arg]
-                intervenciones_consolidadas="Enalapril 10mg.",
-                estado_seguridad="Sin alergias.",
+            DomainItem(  # type: ignore[call-arg]
+                id="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                status="ok",
+                description="Sin título.",
             )
 
 
 # ---------------------------------------------------------------------------
-# AnalyzeResponse
+# AlertItem
 # ---------------------------------------------------------------------------
 
 
-class TestAnalyzeResponse:
-    def _make_resumen(self) -> ResumenEjecutivoTecnico:
-        return ResumenEjecutivoTecnico(
-            trayectoria_clinica="Trayectoria de prueba.",
-            intervenciones_consolidadas="Intervención de prueba.",
-            estado_seguridad="Sin alertas.",
+class TestAlertItem:
+    def test_valid_construction(self):
+        """Todos los campos presentes → modelo válido."""
+        item = AlertItem(
+            id="bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            title="Interacción medicamentosa",
+            status="danger",
+            description="Riesgo de toxicidad renal.",
+        )
+        assert item.status == "danger"
+        assert item.title == "Interacción medicamentosa"
+
+    def test_missing_required_field(self):
+        """Omitir 'id' → ValidationError."""
+        with pytest.raises(ValidationError):
+            AlertItem(  # type: ignore[call-arg]
+                title="Alerta",
+                status="warn",
+                description="Desc.",
+            )
+
+
+# ---------------------------------------------------------------------------
+# TimelineItem
+# ---------------------------------------------------------------------------
+
+
+class TestTimelineItem:
+    def test_valid_construction(self):
+        """Todos los campos presentes → modelo válido."""
+        item = TimelineItem(
+            id="cccccccc-cccc-cccc-cccc-cccccccccccc",
+            date="2019-03-15",
+            title="Diagnóstico HTA",
+            description="Primera consulta.",
+            is_critical=True,
+        )
+        assert item.is_critical is True
+        assert item.date == "2019-03-15"
+
+    def test_empty_date_allowed(self):
+        """date puede ser cadena vacía."""
+        item = TimelineItem(
+            id="cccccccc-cccc-cccc-cccc-cccccccccccc",
+            date="",
+            title="Evento sin fecha",
+            description="Sin fecha.",
+            is_critical=False,
+        )
+        assert item.date == ""
+
+    def test_missing_required_field(self):
+        """Omitir 'is_critical' → ValidationError."""
+        with pytest.raises(ValidationError):
+            TimelineItem(  # type: ignore[call-arg]
+                id="cccccccc-cccc-cccc-cccc-cccccccccccc",
+                date="2020-01-01",
+                title="Evento",
+                description="Desc.",
+            )
+
+
+# ---------------------------------------------------------------------------
+# SummaryResponse
+# ---------------------------------------------------------------------------
+
+
+class TestSummaryResponse:
+    def _make_domain(self) -> DomainItem:
+        return DomainItem(
+            id="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            title="Cardiología",
+            status="ok",
+            description="Estable.",
+        )
+
+    def _make_alert(self) -> AlertItem:
+        return AlertItem(
+            id="bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            title="Alerta",
+            status="warn",
+            description="Desc.",
+        )
+
+    def _make_timeline_item(self) -> TimelineItem:
+        return TimelineItem(
+            id="cccccccc-cccc-cccc-cccc-cccccccccccc",
+            date="2020-01-01",
+            title="Evento",
+            description="Desc.",
+            is_critical=False,
         )
 
     def test_full_response(self):
-        """Construir con todos los campos incluyendo resumen anidado → válido."""
-        resp = AnalyzeResponse(
-            resumen_ejecutivo=self._make_resumen(),
-            proveedor="openai",
-            modelo="gpt-4o",
-            tokens_entrada=100,
-            tokens_salida=50,
-            tiempo_procesamiento_ms=320,
+        """Construir con todos los campos → válido."""
+        resp = SummaryResponse(
+            patient_id="11111111-1111-1111-1111-111111111111",
+            domains=[self._make_domain()],
+            alerts=[self._make_alert()],
+            timeline=[self._make_timeline_item()],
         )
-        assert resp.proveedor == "openai"
-        assert resp.modelo == "gpt-4o"
-        assert resp.tokens_entrada == 100
-        assert resp.tokens_salida == 50
-        assert resp.tiempo_procesamiento_ms == 320
-        assert resp.resumen_ejecutivo is not None
+        assert resp.patient_id == "11111111-1111-1111-1111-111111111111"
+        assert len(resp.domains) == 1
+        assert len(resp.alerts) == 1
+        assert len(resp.timeline) == 1
 
-    def test_resumen_none(self):
-        """resumen_ejecutivo=None → degradación graciosa, modelo válido."""
-        resp = AnalyzeResponse(
-            resumen_ejecutivo=None,
-            proveedor="openai",
-            modelo="gpt-4o",
-            tiempo_procesamiento_ms=100,
+    def test_empty_arrays(self):
+        """Arrays vacíos → válido."""
+        resp = SummaryResponse(
+            patient_id="11111111-1111-1111-1111-111111111111",
+            domains=[],
+            alerts=[],
+            timeline=[],
         )
-        assert resp.resumen_ejecutivo is None
+        assert resp.domains == []
+        assert resp.alerts == []
+        assert resp.timeline == []
 
-    def test_tokens_none(self):
-        """tokens_entrada y tokens_salida opcionales → None válido."""
-        resp = AnalyzeResponse(
-            proveedor="openai",
-            modelo="gpt-4o",
-            tokens_entrada=None,
-            tokens_salida=None,
-            tiempo_procesamiento_ms=50,
-        )
-        assert resp.tokens_entrada is None
-        assert resp.tokens_salida is None
-
-    def test_tiempo_required(self):
-        """Omitir tiempo_procesamiento_ms → ValidationError."""
+    def test_missing_patient_id(self):
+        """Sin patient_id → ValidationError."""
         with pytest.raises(ValidationError):
-            AnalyzeResponse(  # type: ignore[call-arg]
-                proveedor="openai",
-                modelo="gpt-4o",
+            SummaryResponse(  # type: ignore[call-arg]
+                domains=[],
+                alerts=[],
+                timeline=[],
             )
