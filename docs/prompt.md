@@ -3,6 +3,8 @@
 
 ## Project Purpose
 
+The Clinical Copilot is an artificial intelligence tool designed to **summarize patient medical histories** in a technical, structured, and chronological format, optimized for medical decision-making.
+
 Compare the performance of **three types of LLM approaches** on a specific task: summarizing patient clinical histories for doctors. The summary must use high-quality technical medical language, capture all important information, and be organized chronologically and by clinical domains.
 
 The three model categories to compare:
